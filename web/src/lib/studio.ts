@@ -44,7 +44,7 @@ export const useStudio = create<StudioState>()(
       negativePrompt: '',
       selected: { image: [], video: [] },
       compare: false,
-      params: { image: { count: 1 }, video: { count: 1, audio: true, promptExtend: true } },
+      params: { image: { count: 1 }, video: { count: 1, audio: true, promptExtend: false } },
       modelOverride: '',
       sources: [],
       firstFrame: null,
@@ -84,7 +84,13 @@ export const useStudio = create<StudioState>()(
     }),
     {
       name: 'img-studio',
-      version: 1,
+      version: 2,
+      // v2: provider prompt rewriting is off by default — prompts are sent exactly as written.
+      migrate: (persisted, version) => {
+        const state = persisted as Partial<StudioState>;
+        if (version < 2 && state.params?.video) state.params.video.promptExtend = false;
+        return state as StudioState;
+      },
       partialize: (s) => ({
         kind: s.kind,
         prompt: s.prompt,

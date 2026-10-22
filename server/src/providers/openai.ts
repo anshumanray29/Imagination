@@ -1,6 +1,6 @@
 import { FormData } from 'undici';
 import { config } from '../config.js';
-import { requestForm, requestJson } from '../lib/http.js';
+import { ProviderHttpError, requestForm, requestJson } from '../lib/http.js';
 import { OPENAI_MODELS } from './catalog.js';
 import type { JobContext, ProviderAdapter, ProviderOutput, SubmitResult } from './types.js';
 
@@ -75,25 +75,35 @@ async function generate(ctx: JobContext): Promise<SubmitResult> {
     fields.background = 'transparent';
     fields.output_format = 'png';
   }
+  // OpenAI's documented "less restrictive filtering" level (the default is "auto").
+  fields.moderation = 'low';
 
-  let resp: any;
-  if (!ctx.sources.length) {
-    resp = await requestJson(`${base()}/images/generations`, {
-      headers: auth(),
-      body: { ...fields, n: Number(fields.n) },
-      signal: ctx.signal,
-      provider: PROVIDER,
-    });
-  } else {
+  const images: { blob: Blob; name: string }[] = [];
+  for (const img of ctx.sources) {
+    const { data, mime } = await img.base64({ maxSide: 2048, format: 'png', flatten: false });
+    images.push({ blob: new Blob([Buffer.from(data, 'base64')], { type: mime }), name: `image-${images.length + 1}.png` });
+  }
+
+  const send = (f: Record<string, string>) => {
+    if (!images.length) {
+      return requestJson(`${base()}/images/generations`, { headers: auth(), body: { ...f, n: Number(f.n) }, signal: ctx.signal, provider: PROVIDER });
+    }
     // The edits endpoint takes multipart uploads: one image[] field per input image.
     const form = new FormData();
-    for (const [k, v] of Object.entries(fields)) form.append(k, v);
-    let i = 0;
-    for (const img of ctx.sources) {
-      const { data, mime } = await img.base64({ maxSide: 2048, format: 'png', flatten: false });
-      form.append('image[]', new Blob([Buffer.from(data, 'base64')], { type: mime }), `image-${++i}.png`);
-    }
-    resp = await requestForm(`${base()}/images/edits`, { form, headers: auth(), signal: ctx.signal, provider: PROVIDER });
+    for (const [k, v] of Object.entries(f)) form.append(k, v);
+    for (const img of images) form.append('image[]', img.blob, img.name);
+    return requestForm(`${base()}/images/edits`, { form, headers: auth(), signal: ctx.signal, provider: PROVIDER });
+  };
+
+  let resp: any;
+  try {
+    resp = await send(fields);
+  } catch (err) {
+    // Older models / endpoints may not accept the moderation field; retry with the default.
+    if (!(err instanceof ProviderHttpError && err.status === 400 && /moderation/i.test(err.body))) throw err;
+    console.warn(`[openai] ${ctx.providerModelId} rejected moderation=low on ${images.length ? 'edits' : 'generations'}; retrying with the default`);
+    const { moderation: _drop, ...rest } = fields;
+    resp = await send(rest);
   }
 
   const outputs = toOutputs(resp);

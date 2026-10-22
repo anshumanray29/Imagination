@@ -12,6 +12,7 @@ import {
   Images,
   Layers,
   Loader2,
+  Maximize2,
   Palette,
   Plus,
   SlidersHorizontal,
@@ -358,7 +359,13 @@ export function StudioPage() {
               <Field label="Edit or combine" hint={maxSources ? `up to ${maxSources} · refer to them as image 1, image 2…` : 'not supported by this model'}>
                 <div className="grid grid-cols-5 gap-2">
                   {s.sources.map((id, i) => (
-                    <Slot key={id} assetId={id} label={`${i + 1}`} onRemove={() => s.set({ sources: s.sources.filter((x) => x !== id) })} />
+                    <Slot
+                      key={id}
+                      assetId={id}
+                      label={`${i + 1}`}
+                      onView={() => setViewer({ id, ids: s.sources })}
+                      onRemove={() => s.set({ sources: s.sources.filter((x) => x !== id) })}
+                    />
                   ))}
                   {s.sources.length < maxSources && <AddSlot loading={uploading} onClick={() => setPicker('sources')} />}
                 </div>
@@ -368,14 +375,24 @@ export function StudioPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Start frame" hint={canFirst ? 'optional' : 'n/a'}>
                     {s.firstFrame ? (
-                      <Slot assetId={s.firstFrame} wide onRemove={() => s.set({ firstFrame: null, lastFrame: null })} />
+                      <Slot
+                        assetId={s.firstFrame}
+                        wide
+                        onView={() => setViewer({ id: s.firstFrame!, ids: [s.firstFrame!, ...(s.lastFrame ? [s.lastFrame] : [])] })}
+                        onRemove={() => s.set({ firstFrame: null, lastFrame: null })}
+                      />
                     ) : (
                       <AddSlot wide disabled={!canFirst} loading={uploading} onClick={() => setPicker('first')} />
                     )}
                   </Field>
                   <Field label="End frame" hint={canLast ? 'optional' : 'n/a'}>
                     {s.lastFrame ? (
-                      <Slot assetId={s.lastFrame} wide onRemove={() => s.set({ lastFrame: null })} />
+                      <Slot
+                        assetId={s.lastFrame}
+                        wide
+                        onView={() => setViewer({ id: s.lastFrame!, ids: [...(s.firstFrame ? [s.firstFrame] : []), s.lastFrame!] })}
+                        onRemove={() => s.set({ lastFrame: null })}
+                      />
                     ) : (
                       <AddSlot wide disabled={!canLast || !s.firstFrame} onClick={() => setPicker('last')} />
                     )}
@@ -384,7 +401,12 @@ export function StudioPage() {
                 <Field label="Reference images" hint={maxRefs ? `subjects, products, styles · up to ${maxRefs}` : 'not supported by this model'}>
                   <div className="grid grid-cols-5 gap-2">
                     {s.references.map((id) => (
-                      <Slot key={id} assetId={id} onRemove={() => s.set({ references: s.references.filter((x) => x !== id) })} />
+                      <Slot
+                        key={id}
+                        assetId={id}
+                        onView={() => setViewer({ id, ids: s.references })}
+                        onRemove={() => s.set({ references: s.references.filter((x) => x !== id) })}
+                      />
                     ))}
                     {s.references.length < maxRefs && <AddSlot onClick={() => setPicker('refs')} />}
                   </div>
@@ -523,7 +545,12 @@ export function StudioPage() {
                 <div className="space-y-3 rounded-xl border border-line bg-panel-2/50 p-3">
                   {caps.audio && <Toggle label="Generate sound" hint="Dialogue, effects and ambience" checked={params.audio !== false} onChange={(v) => s.setParams(kind, { audio: v })} />}
                   {caps.promptExtend && (
-                    <Toggle label="Provider prompt rewriting" hint="Let the model expand short prompts" checked={params.promptExtend !== false} onChange={(v) => s.setParams(kind, { promptExtend: v })} />
+                    <Toggle
+                      label="Provider prompt rewriting"
+                      hint="Off = your prompt is sent exactly as written"
+                      checked={params.promptExtend === true}
+                      onChange={(v) => s.setParams(kind, { promptExtend: v })}
+                    />
                   )}
                   {caps.transparentBackground && (
                     <Toggle
@@ -700,17 +727,32 @@ function AspectIcon({ ratio }: { ratio: string }) {
   return <span className="inline-block rounded-[2px] border-[1.5px] border-current opacity-80" style={{ width, height }} />;
 }
 
-function Slot({ assetId, onRemove, label, wide }: { assetId: string; onRemove: () => void; label?: string; wide?: boolean }) {
+/** Input thumbnail: click to view full size, ✕ (always visible) to remove. */
+function Slot({ assetId, onRemove, onView, label, wide }: { assetId: string; onRemove: () => void; onView: () => void; label?: string; wide?: boolean }) {
   const { data } = useAsset(assetId);
   return (
-    <div className={clsx('group checker relative overflow-hidden rounded-xl border border-line', wide ? 'aspect-video' : 'aspect-square')}>
-      {data ? <img src={data.thumbUrl} alt="" className="size-full object-cover" /> : <div className="shimmer size-full" />}
-      {label && <span className="absolute bottom-1 left-1 rounded-md bg-black/70 px-1.5 text-[10px] font-semibold text-white">{label}</span>}
-      <Tooltip label="Remove">
-        <button onClick={onRemove} className="absolute top-1 right-1 rounded-md bg-black/70 p-0.5 text-white opacity-0 transition group-hover:opacity-100" aria-label="Remove">
-          <X className="size-3.5" />
-        </button>
-      </Tooltip>
+    <div className={clsx('group checker relative overflow-hidden rounded-xl border border-line transition hover:border-accent/50', wide ? 'aspect-video' : 'aspect-square')}>
+      <button type="button" onClick={onView} className="absolute inset-0 cursor-zoom-in" aria-label="View image">
+        {data ? <img src={data.thumbUrl} alt="" className="size-full object-cover" /> : <div className="shimmer size-full" />}
+        <span className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition group-hover:opacity-100">
+          <span className="flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+            <Maximize2 className="size-3" /> {wide ? 'View' : ''}
+          </span>
+        </span>
+      </button>
+      {label && <span className="pointer-events-none absolute bottom-1 left-1 rounded-md bg-black/75 px-1.5 text-[10px] font-semibold text-white">{label}</span>}
+      <span className="absolute top-1 right-1">
+        <Tooltip label="Remove">
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label="Remove image"
+            className="flex size-5 items-center justify-center rounded-md bg-black/75 text-white shadow transition hover:bg-red-500"
+          >
+            <X className="size-3.5" />
+          </button>
+        </Tooltip>
+      </span>
     </div>
   );
 }

@@ -65,7 +65,8 @@ async function startVideo(ctx: JobContext): Promise<SubmitResult> {
     resolution: p.resolution ?? '720P',
     ratio: p.aspectRatio ?? 'adaptive',
     duration: p.duration ?? 5,
-    prompt_extend: p.promptExtend ?? true,
+    // Off unless asked for: send the prompt exactly as written instead of an LLM rewrite.
+    prompt_extend: p.promptExtend ?? false,
     watermark: false,
   };
   if (p.audio === false) parameters.audio = false;

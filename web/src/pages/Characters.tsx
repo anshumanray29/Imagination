@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { useCharacters } from '@/lib/queries';
 import { useStudio } from '@/lib/studio';
 import { AssetPicker } from '@/components/AssetPicker';
+import { AssetViewer } from '@/components/AssetViewer';
 import { Button, Empty, Field, inputClass, Tooltip } from '@/components/ui';
 import { toast } from '@/components/toast';
 
@@ -95,6 +96,7 @@ function CharacterDetail({ character }: { character: Character }) {
   const [name, setName] = useState(character.name);
   const [description, setDescription] = useState(character.description);
   const [picker, setPicker] = useState(false);
+  const [viewer, setViewer] = useState<string | null>(null);
   const [describing, setDescribing] = useState(false);
   const dirty = name !== character.name || description !== character.description;
   const cover = character.assets.find((a) => a.id === character.coverAssetId) ?? character.assets[0];
@@ -208,9 +210,11 @@ function CharacterDetail({ character }: { character: Character }) {
             {character.assets.map((a) => {
               const isCover = (character.coverAssetId ?? character.assets[0]?.id) === a.id;
               return (
-                <div key={a.id} className="group checker relative aspect-square overflow-hidden rounded-2xl border border-line">
-                  <img src={a.thumbUrl} alt="" className="size-full object-cover transition duration-500 group-hover:scale-105" />
-                  <div className="absolute inset-x-1.5 top-1.5 flex justify-between opacity-0 transition group-hover:opacity-100">
+                <div key={a.id} className="group checker relative aspect-square overflow-hidden rounded-2xl border border-line transition hover:border-accent/50">
+                  <button type="button" onClick={() => setViewer(a.id)} className="absolute inset-0 cursor-zoom-in" aria-label="View photo">
+                    <img src={a.thumbUrl} alt="" className="size-full object-cover transition duration-500 group-hover:scale-105" />
+                  </button>
+                  <div className="absolute inset-x-1.5 top-1.5 flex justify-between">
                     <Tooltip label="Use as cover">
                       <button
                         onClick={() => api.updateCharacter(character.id, { coverAssetId: a.id }).catch(toast.error)}
@@ -225,7 +229,7 @@ function CharacterDetail({ character }: { character: Character }) {
                       </button>
                     </Tooltip>
                   </div>
-                  {isCover && <Star className="absolute bottom-2 left-2 size-4 fill-amber-300 text-amber-300 drop-shadow" />}
+                  {isCover && <Star className="pointer-events-none absolute bottom-2 left-2 size-4 fill-amber-300 text-amber-300 drop-shadow" />}
                 </div>
               );
             })}
@@ -261,6 +265,9 @@ function CharacterDetail({ character }: { character: Character }) {
         title={`Add reference photos for ${character.name}`}
         onPick={(ids) => api.addCharacterImages(character.id, ids).catch(toast.error)}
       />
+      {viewer && (
+        <AssetViewer assetId={viewer} ids={character.assets.map((a) => a.id)} onNavigate={setViewer} onClose={() => setViewer(null)} />
+      )}
     </div>
   );
 }

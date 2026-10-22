@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { Generation, ServerEvent } from '@imagination/shared';
 import { api, type AssetQuery } from './api';
+import { useStudio } from './studio';
 
 export const keys = {
   providers: ['providers'] as const,
@@ -91,6 +92,16 @@ export function useLiveEvents() {
           refreshAssets();
         } else if (event.type === 'asset-deleted') {
           qc.removeQueries({ queryKey: keys.asset(event.id) });
+          // Drop a deleted file from the Studio inputs so no empty slot is left behind.
+          const st = useStudio.getState();
+          if (st.sources.includes(event.id) || st.references.includes(event.id) || st.firstFrame === event.id || st.lastFrame === event.id) {
+            st.set({
+              sources: st.sources.filter((x) => x !== event.id),
+              references: st.references.filter((x) => x !== event.id),
+              firstFrame: st.firstFrame === event.id ? null : st.firstFrame,
+              lastFrame: st.lastFrame === event.id || st.firstFrame === event.id ? null : st.lastFrame,
+            });
+          }
           refreshAssets();
           qc.invalidateQueries({ queryKey: keys.characters });
         } else if (event.type === 'character') {
