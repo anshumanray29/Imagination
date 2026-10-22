@@ -63,8 +63,10 @@ function validateTarget(body: CreateGenerationBody, providerId: string, model: M
       return caps.maxSourceImages === 0 ? `${name} can't take input images` : `${name} accepts at most ${caps.maxSourceImages} input images`;
     }
     if (characterImageCount && caps.maxSourceImages === 0) return `${name} can't use character references`;
+    if (caps.requiresImage && !sources) return `${name} needs an input image`;
   } else {
     const frames = count('first_frame') + count('last_frame');
+    if (caps.requiresImage && !count('first_frame')) return `${name} needs a start frame — add one under Frames & references`;
     if (count('first_frame') && !caps.firstFrame) return `${name} can't start from an image`;
     if (count('last_frame') && !caps.lastFrame) return `${name} doesn't support a last frame`;
     if (count('last_frame') && !count('first_frame')) return 'A last frame needs a first frame too';

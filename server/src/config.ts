@@ -44,10 +44,8 @@ const schema = z.object({
   OPENAI_API_KEY: optional(),
   OPENAI_BASE_URL: z.preprocess(blankToUndefined, z.string().default('https://api.openai.com/v1')),
 
-  DASHSCOPE_API_KEY: optional(),
-  DASHSCOPE_BASE_URL: z.preprocess(blankToUndefined, z.string().default('https://dashscope-intl.aliyuncs.com/api/v1')),
-  DASHSCOPE_TEXT_MODEL: z.preprocess(blankToUndefined, z.string().default('qwen-plus')),
-  DASHSCOPE_VISION_MODEL: z.preprocess(blankToUndefined, z.string().default('qwen-vl-max')),
+  FAL_KEY: optional(),
+  FAL_BASE_URL: z.preprocess(blankToUndefined, z.string().default('https://queue.fal.run')),
 
   ENABLE_MOCK_PROVIDER: bool(true),
 

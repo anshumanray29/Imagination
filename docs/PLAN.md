@@ -23,7 +23,7 @@ Browser (React)
   ▼
 Fastify API ──► SQLite (assets, generations, characters)
   │
-  ├─► Job worker ── submit ──► Provider adapter ──► Gemini / xAI / Wan / Mock
+  ├─► Job worker ── submit ──► Provider adapter ──► Gemini / xAI / OpenAI / fal.ai / Mock
   │        ▲        poll ◄──────────┘ (async tasks)
   │        └── download result → storage → thumbnail → DB → SSE event
   │
@@ -36,7 +36,7 @@ Fastify API ──► SQLite (assets, generations, characters)
 - **One catalog file** (`server/src/providers/catalog.ts`). Provider model IDs change every few months (Veo 3.1 preview shuts down 2026-10-22), so updating models is a one-file edit. The Studio also accepts a *custom model ID* for instant tests.
 - **Durable jobs.** Jobs live in SQLite. If IMG restarts while a provider is rendering, polling resumes. Jobs interrupted mid-submit are marked failed (never silently re-sent, which could double-bill).
 - **Results are copied immediately.** Provider URLs expire in 1–2 days, so outputs are downloaded into storage the moment they finish.
-- **Inputs via signed links.** Providers that fetch images by URL (Wan) get short-lived signed R2 links to a normalized JPEG copy. Others get inline base64.
+- **Inputs via signed links.** Providers that fetch images by URL (fal.ai) get short-lived signed R2 links to a normalized JPEG copy. Others get inline base64.
 - **Characters = photos + description.** At run time IMG spreads each character's photos across the model's reference slots (round-robin, so every character gets at least one), and appends a character sheet that points at the right images ("Aria (shown in Image 2, Image 3): …").
 
 ## Provider support (checked 2026-10-20)
@@ -46,7 +46,7 @@ Fastify API ──► SQLite (assets, generations, characters)
 | Google Gemini | Nano Banana 2.1, Pro, 2, 2 Lite: generate & edit with up to 14 images | Gemini Omni Flash: text/start/end/reference → video with audio | Uses the Interactions API. Veo 3.1 preview IDs retire 2026-10-22; GA Veo is only on Vertex AI. |
 | xAI | Grok Imagine Image 2.0 / Quality: generate, edit with up to 5 images | Grok Imagine Video 1.5 / 1.5 Lite / classic: up to 15 s, 1080p, start/end frame, references | Reports exact cost per request. |
 | OpenAI | GPT Image 2.5 Sunburst / Flare, GPT Image 1 Mini: generate, edit (multipart), transparent backgrounds | — (Sora API shut down 2026-09-24) | Exact cost computed from token usage. |
-| Wan (DashScope) | Wan 2.7 Image / Pro: generate, edit with up to 9 images | Wan 3.0 Video / Prime: 2–30 s, start/end frame, up to 10 references | Async tasks; inputs by URL. |
+| fal.ai (Wan) | Wan 2.7 Image: generate, edit with up to 4 images; Wan 2.2 Image | Wan 3.0 / Prime: 3–30 s, start/end frame, up to 10 references; Wan 2.6 Flash; Wan 2.2 A14B / Turbo | Queue API; inputs by URL. Alibaba's own DashScope API was removed in favor of fal. |
 | Mock | placeholder images | ffmpeg test clips | Offline testing. |
 
 ## Roadmap
@@ -80,6 +80,6 @@ Fastify API ──► SQLite (assets, generations, characters)
 
 1. **Gemini API key**. Video needs billing enabled on the project.
 2. **xAI API key** with credits.
-3. **Alibaba Cloud Model Studio API key**, and the region it was created in (Singapore by default). Model Studio must be activated in that region.
+3. **fal.ai API key** with balance (Wan video and images).
 4. **Cloudflare R2**: Account ID, Access Key ID, Secret Access Key, bucket name (private bucket, token with Object Read & Write).
 5. Recommended: set a spending limit or alert in each provider's billing console. Video generation is billed per second.

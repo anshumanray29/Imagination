@@ -1,6 +1,6 @@
 # IMG · Imagination
 
-A personal AI studio that runs on your own machine. Generate and edit **images**, turn images into **videos**, and keep **characters consistent** across everything — switching freely between Google Gemini, xAI Grok Imagine and Alibaba Wan (more providers can be plugged in). Finished files are stored in **Cloudflare R2** (or on local disk until R2 is set up).
+A personal AI studio that runs on your own machine. Generate and edit **images**, turn images into **videos**, and keep **characters consistent** across everything — switching freely between Google Gemini, xAI Grok Imagine, OpenAI GPT Image and Wan models on fal.ai (more providers can be plugged in). Finished files are stored in **Cloudflare R2** (or on local disk until R2 is set up).
 
 ## Quick start
 
@@ -26,7 +26,7 @@ No keys yet? The **Mock** provider is on by default, so every screen and flow ca
 | Google Gemini | `GEMINI_API_KEY` | [AI Studio → API keys](https://aistudio.google.com/apikey). Video (Gemini Omni Flash) needs a **paid-tier** project. |
 | xAI Grok | `XAI_API_KEY` | [console.x.ai](https://console.x.ai) → API Keys (prepaid credits). |
 | OpenAI | `OPENAI_API_KEY` | [platform.openai.com](https://platform.openai.com/api-keys) → API keys. Images only: OpenAI shut down its Sora video API on 2026-09-24. |
-| Wan (Alibaba) | `DASHSCOPE_API_KEY`, `DASHSCOPE_BASE_URL` | Alibaba Cloud **Model Studio** → API Key. The key only works in the region it was created in; the default URL is Singapore. |
+| fal.ai | `FAL_KEY` | [fal.ai/dashboard/keys](https://fal.ai/dashboard/keys) — an **API**-scope key is enough. Wan video (3.0, 3.0 Prime, 2.6 Flash, 2.2) and Wan images (2.7, 2.2). |
 | Cloudflare R2 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` (optional `R2_PREFIX`) | Cloudflare dashboard → R2 → create a **private** bucket → *Manage R2 API Tokens* → token with **Object Read & Write** on that bucket. |
 
 Restart IMG after editing `.env`. **Settings → Test connection** checks each key, and **Test storage** checks R2.
@@ -54,7 +54,7 @@ The server only listens on `127.0.0.1`, so nothing is reachable from other devic
   - Open any item to download, favorite, remix, edit, animate or add it to a character.
   - **Continue** a video: saves its last frame and opens it as the next clip's start frame.
   - Multi-select clips and **Stitch** them into one video (ffmpeg).
-- **Queue**: live status of every job, with cancel, run again, remix, and cost per job. xAI and OpenAI costs are exact (from each provider's usage report); Gemini and Wan use list prices.
+- **Queue**: live status of every job, with cancel, run again, remix, and cost per job. xAI and OpenAI costs are exact (from each provider's usage report); Gemini and fal.ai use list prices.
 - **Usage & settings**
   - Spend today / this month / all time, and a daily spend chart by provider.
   - Provider and storage checks.
@@ -86,7 +86,7 @@ Create `server/src/providers/<name>.ts` implementing `ProviderAdapter` (`submit`
 ## Troubleshooting
 
 - **A provider says "not configured"**: the key is missing in `.env`, or IMG wasn't restarted after you added it.
-- **Wan rejects input images while using local storage**: Wan downloads inputs from a URL, so configure R2, and IMG will hand it short-lived signed links.
+- **fal.ai can't read an input image**: fal downloads inputs from a URL. With R2 configured IMG gives it short-lived signed links; on local storage it sends the image inline instead, which some fal models reject — configure R2 if that happens.
 - **Gemini video fails with a billing/permission error**: Gemini Omni Flash requires a paid-tier API project.
 - **No video thumbnails**: ffmpeg isn't on PATH. Set `FFMPEG_PATH` / `FFPROBE_PATH` in `.env`.
 - Generated files are copied to your storage right away. Provider-hosted URLs expire within 1–2 days, so nothing depends on them.

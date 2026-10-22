@@ -34,7 +34,8 @@ export function usd(n: number | null | undefined): string {
 /** Compact money for labels and ticks: $0.04, $1.20, $12. */
 export function money(n: number): string {
   if (n === 0) return '$0';
-  if (n < 0.01) return `$${n.toFixed(3)}`;
+  // Keep a third decimal when it matters (e.g. $0.075, $0.0336) instead of rounding it away.
+  if (n < 0.01 || (n < 1 && Math.abs(n * 100 - Math.round(n * 100)) > 0.05)) return `$${Number(n.toFixed(3))}`;
   if (n < 10) return `$${n.toFixed(2)}`;
   return `$${n.toFixed(0)}`;
 }
@@ -44,7 +45,7 @@ export function priceLabel(pricing: ModelPricing | undefined, providerId?: strin
   if (providerId === 'mock') return 'free';
   const r = priceRange(pricing);
   if (!r) return null;
-  const unit = r.unit === 'image' ? 'image' : 'sec';
+  const unit = r.unit;
   const lo = money(r.min);
   const approx = pricing?.approximate ? '≈ ' : '';
   return r.max > r.min * 1.001 ? `${approx}${lo}–${money(r.max).slice(1)} / ${unit}` : `${approx}${lo} / ${unit}`;

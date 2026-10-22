@@ -3,16 +3,14 @@ import { config } from '../config.js';
 import { requestJson } from '../lib/http.js';
 import { badRequest } from '../lib/util.js';
 import { normalizeImage } from '../media/image.js';
-import { dashscopeCompatBase } from '../providers/wan.js';
 import { getAssetRows, readAsset } from './assets.js';
 
-export type TextProvider = 'gemini' | 'xai' | 'wan';
+export type TextProvider = 'gemini' | 'xai';
 
 export function textProviders(): TextProvider[] {
   const list: TextProvider[] = [];
   if (config.GEMINI_API_KEY) list.push('gemini');
   if (config.XAI_API_KEY) list.push('xai');
-  if (config.DASHSCOPE_API_KEY) list.push('wan');
   return list;
 }
 
@@ -39,18 +37,14 @@ async function complete(provider: TextProvider, req: CompleteRequest): Promise<s
     return (resp?.candidates?.[0]?.content?.parts ?? []).map((p: any) => (p.thought ? '' : (p.text ?? ''))).join('').trim();
   }
 
-  // xAI and DashScope both speak the OpenAI chat-completions format.
-  const isXai = provider === 'xai';
-  const url = isXai ? `${config.XAI_BASE_URL.replace(/\/+$/, '')}/chat/completions` : `${dashscopeCompatBase()}/chat/completions`;
-  const key = isXai ? config.XAI_API_KEY! : config.DASHSCOPE_API_KEY!;
-  const model = isXai ? config.XAI_TEXT_MODEL : req.images?.length ? config.DASHSCOPE_VISION_MODEL : config.DASHSCOPE_TEXT_MODEL;
+  // xAI speaks the OpenAI chat-completions format.
   const content = req.images?.length
     ? [...req.images.map((img) => ({ type: 'image_url', image_url: { url: `data:${img.mime};base64,${img.data}` } })), { type: 'text', text: req.user }]
     : req.user;
-  const resp = await requestJson(url, {
-    headers: { Authorization: `Bearer ${key}` },
-    body: { model, messages: [{ role: 'system', content: req.system }, { role: 'user', content }], temperature: 0.8 },
-    provider: isXai ? 'xAI' : 'Wan',
+  const resp = await requestJson(`${config.XAI_BASE_URL.replace(/\/+$/, '')}/chat/completions`, {
+    headers: { Authorization: `Bearer ${config.XAI_API_KEY!}` },
+    body: { model: config.XAI_TEXT_MODEL, messages: [{ role: 'system', content: req.system }, { role: 'user', content }], temperature: 0.8 },
+    provider: 'xAI',
   });
   return String(resp?.choices?.[0]?.message?.content ?? '').trim();
 }
@@ -61,7 +55,7 @@ async function complete(provider: TextProvider, req: CompleteRequest): Promise<s
  */
 async function completeWithFallback(req: CompleteRequest, preferred?: string): Promise<{ text: string; provider: TextProvider }> {
   const available = textProviders();
-  if (!available.length) throw badRequest('Add a Gemini, xAI or DashScope API key to use AI prompt tools');
+  if (!available.length) throw badRequest('Add a Gemini or xAI API key to use AI prompt tools');
   const order = preferred && available.includes(preferred as TextProvider) ? [preferred as TextProvider, ...available.filter((p) => p !== preferred)] : available;
   const errors: string[] = [];
   for (const provider of order) {

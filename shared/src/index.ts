@@ -44,6 +44,8 @@ export interface ModelCapabilities {
   qualities?: string[];
   /** Can render a transparent (alpha) background. */
   transparentBackground?: boolean;
+  /** Needs an input image: a start frame for video models, a source image for image models. */
+  requiresImage?: boolean;
 }
 
 /** List prices in USD. Keyed maps override the flat price when the chosen param matches. */
@@ -56,6 +58,9 @@ export interface ModelPricing {
   scaleByResolution?: Record<string, number>;
   perSecond?: number;
   perSecondByResolution?: Record<string, number>;
+  /** Flat price per clip (models with a fixed clip length). */
+  perVideo?: number;
+  perVideoByResolution?: Record<string, number>;
   /** True when the figures are estimates rather than published per-unit prices. */
   approximate?: boolean;
   note?: string;
@@ -268,6 +273,8 @@ export function estimateCost(model: ModelInfo, params: GenerationParams): number
   if (!p) return null;
   const count = params.count ?? 1;
   if (model.capabilities.kind === 'video') {
+    const perClip = priceFor(p.perVideoByResolution, params.resolution) ?? p.perVideo;
+    if (perClip !== undefined) return perClip * count;
     const rate = priceFor(p.perSecondByResolution, params.resolution) ?? p.perSecond;
     return rate && params.duration ? rate * params.duration * count : null;
   }
@@ -278,7 +285,7 @@ export function estimateCost(model: ModelInfo, params: GenerationParams): number
 }
 
 /** Cheapest–dearest unit price, for compact labels. */
-export function priceRange(p: ModelPricing | undefined): { min: number; max: number; unit: 'image' | 'sec' } | null {
+export function priceRange(p: ModelPricing | undefined): { min: number; max: number; unit: 'image' | 'sec' | 'video' } | null {
   if (!p) return null;
   const image = [p.perImage, ...Object.values(p.perImageByResolution ?? {}), ...Object.values(p.perImageByQuality ?? {})].filter(
     (n): n is number => typeof n === 'number',
@@ -287,6 +294,8 @@ export function priceRange(p: ModelPricing | undefined): { min: number; max: num
     const scales = Object.values(p.scaleByResolution ?? { base: 1 });
     return { min: Math.min(...image) * Math.min(...scales), max: Math.max(...image) * Math.max(...scales), unit: 'image' };
   }
+  const clip = [p.perVideo, ...Object.values(p.perVideoByResolution ?? {})].filter((n): n is number => typeof n === 'number');
+  if (clip.length) return { min: Math.min(...clip), max: Math.max(...clip), unit: 'video' };
   const video = [p.perSecond, ...Object.values(p.perSecondByResolution ?? {})].filter((n): n is number => typeof n === 'number');
   if (video.length) return { min: Math.min(...video), max: Math.max(...video), unit: 'sec' };
   return null;

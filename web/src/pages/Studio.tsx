@@ -110,6 +110,7 @@ export function StudioPage() {
   const maxRefs = limit((c) => c.maxReferenceImages);
   const canFirst = selectedEntries.length > 0 && selectedEntries.every((e) => e.model.capabilities.firstFrame);
   const canLast = selectedEntries.length > 0 && selectedEntries.every((e) => e.model.capabilities.lastFrame);
+  const needsFirst = selectedEntries.some((e) => e.model.capabilities.requiresImage);
 
   const inputs: GenerationInput[] =
     kind === 'image'
@@ -373,7 +374,7 @@ export function StudioPage() {
             ) : (
               <>
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Start frame" hint={canFirst ? 'optional' : 'n/a'}>
+                  <Field label="Start frame" hint={!canFirst ? 'n/a' : needsFirst ? <span className="text-amber-300">required</span> : 'optional'}>
                     {s.firstFrame ? (
                       <Slot
                         assetId={s.firstFrame}
@@ -688,6 +689,7 @@ export function StudioPage() {
         kind={kind}
         selected={s.selected[kind]}
         compare={s.compare}
+        onSwitchKind={(k) => s.set({ kind: k })}
         onCompare={(v) => s.set({ compare: v, selected: { ...s.selected, [kind]: v ? s.selected[kind] : s.selected[kind].slice(0, 1) } })}
         onSelect={(key) => {
           if (s.compare) {
