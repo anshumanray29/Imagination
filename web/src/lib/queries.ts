@@ -82,7 +82,10 @@ export function useLiveEvents() {
         const event = JSON.parse(msg.data) as ServerEvent;
         if (event.type === 'generation') {
           applyGeneration(qc, event.data);
-          if (event.data.status === 'succeeded' || event.data.status === 'failed') qc.invalidateQueries({ queryKey: keys.status });
+          if (event.data.status === 'succeeded' || event.data.status === 'failed') {
+            qc.invalidateQueries({ queryKey: keys.status });
+            qc.invalidateQueries({ queryKey: ['usage'] });
+          }
         } else if (event.type === 'asset') {
           qc.setQueryData(keys.asset(event.data.id), event.data);
           refreshAssets();

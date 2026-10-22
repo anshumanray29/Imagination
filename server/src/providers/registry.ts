@@ -4,11 +4,12 @@ import { notFound } from '../lib/util.js';
 import { geminiProvider } from './gemini.js';
 import { xaiProvider } from './xai.js';
 import { wanProvider } from './wan.js';
+import { openaiProvider } from './openai.js';
 import { mockProvider } from './mock.js';
 import type { ProviderAdapter } from './types.js';
 
 /** Register new providers here. */
-const ALL: ProviderAdapter[] = [geminiProvider, xaiProvider, wanProvider, mockProvider];
+const ALL: ProviderAdapter[] = [geminiProvider, xaiProvider, openaiProvider, wanProvider, mockProvider];
 
 export function providers(): ProviderAdapter[] {
   return ALL.filter((p) => p.id !== 'mock' || config.ENABLE_MOCK_PROVIDER);

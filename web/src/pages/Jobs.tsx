@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 import { elapsed, usd } from '@/lib/format';
 import { useModelName } from '@/lib/models';
 import { useStudio } from '@/lib/studio';
-import { Badge, Chip, Empty, IconButton } from '@/components/ui';
+import { Badge, Chip, Empty, IconButton, PageHeader, ProviderBadge } from '@/components/ui';
 import { toast } from '@/components/toast';
 import { AssetViewer } from '@/components/AssetViewer';
 
@@ -32,14 +32,15 @@ export function JobsPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex items-center gap-3 border-b border-line px-6 py-3">
-        <h1 className="mr-2 font-semibold">Queue & history</h1>
-        {(['all', 'running', 'queued', 'succeeded', 'failed', 'canceled'] as const).map((s) => (
-          <Chip key={s} active={status === s} onClick={() => setStatus(s)}>
-            {s}
-          </Chip>
-        ))}
-      </header>
+      <PageHeader title="Queue & history" subtitle="Every generation with its status, time and cost">
+        <div className="flex flex-wrap gap-1.5">
+          {(['all', 'running', 'queued', 'succeeded', 'failed', 'canceled'] as const).map((s) => (
+            <Chip key={s} active={status === s} onClick={() => setStatus(s)}>
+              {s}
+            </Chip>
+          ))}
+        </div>
+      </PageHeader>
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (
           <div className="flex justify-center py-20 text-muted">
@@ -47,57 +48,70 @@ export function JobsPage() {
           </div>
         ) : rows.length ? (
           <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-bg/95 text-left text-[11px] tracking-wide text-faint uppercase backdrop-blur">
+            <thead className="sticky top-0 z-10 bg-bg/90 text-left text-[11px] tracking-wide text-faint uppercase backdrop-blur">
               <tr className="border-b border-line">
-                <th className="px-6 py-2 font-medium">Status</th>
-                <th className="py-2 font-medium">Model</th>
-                <th className="py-2 font-medium">Prompt</th>
-                <th className="py-2 font-medium">Outputs</th>
-                <th className="py-2 font-medium">Time</th>
-                <th className="py-2 font-medium">Cost</th>
-                <th className="py-2 pr-6" />
+                <th className="px-6 py-2.5 font-medium">Status</th>
+                <th className="py-2.5 font-medium">Model</th>
+                <th className="py-2.5 font-medium">Prompt</th>
+                <th className="py-2.5 font-medium">Outputs</th>
+                <th className="py-2.5 font-medium">Time</th>
+                <th className="py-2.5 font-medium">Cost</th>
+                <th className="py-2.5 pr-6" />
               </tr>
             </thead>
             <tbody>
               {rows.map((g) => {
                 const active = g.status === 'queued' || g.status === 'running';
                 return (
-                  <tr key={g.id} className="border-b border-line/60 align-top hover:bg-panel/60">
-                    <td className="px-6 py-3">
+                  <tr key={g.id} className="border-b border-line/60 align-top transition hover:bg-white/[0.02]">
+                    <td className="w-36 px-6 py-3">
                       <Badge tone={TONE[g.status]}>
                         {g.status === 'running' && <Loader2 className="size-2.5 animate-spin" />}
                         {g.status}
-                        {g.status === 'running' && g.progress ? ` ${g.progress}%` : ''}
                       </Badge>
+                      {g.status === 'running' && (
+                        <div className="mt-2 h-1 w-20 overflow-hidden rounded-full bg-white/[0.06]">
+                          <div className="flow h-full rounded-full" style={{ width: `${Math.max(8, g.progress ?? 0)}%` }} />
+                        </div>
+                      )}
                     </td>
                     <td className="py-3 pr-4">
-                      <div className="font-medium">{modelName(g.provider, g.model)}</div>
-                      <div className="text-xs text-muted">{MODE_LABELS[g.mode]}</div>
+                      <div className="flex items-center gap-2.5">
+                        <ProviderBadge provider={g.provider} size="md" />
+                        <div>
+                          <div className="font-medium">{modelName(g.provider, g.model)}</div>
+                          <div className="text-xs text-faint">{MODE_LABELS[g.mode]}</div>
+                        </div>
+                      </div>
                     </td>
                     <td className="max-w-md py-3 pr-4">
-                      <div className="line-clamp-2 text-muted" title={g.prompt}>
+                      <div className="line-clamp-2 text-fg/80" title={g.prompt}>
                         {g.prompt}
                       </div>
-                      {g.error && <div className="mt-1 line-clamp-2 text-xs text-red-300" title={g.error}>{g.error}</div>}
+                      {g.error && (
+                        <div className="mt-1 line-clamp-2 text-xs text-red-300" title={g.error}>
+                          {g.error}
+                        </div>
+                      )}
                     </td>
                     <td className="py-3 pr-4">
-                      <div className="flex gap-1">
+                      <div className="flex gap-1.5">
                         {g.outputAssetIds.slice(0, 4).map((id) => (
                           <img
                             key={id}
                             src={`/api/assets/${id}/thumb`}
                             alt=""
                             onClick={() => setViewer({ id, ids: g.outputAssetIds })}
-                            className="size-10 cursor-pointer rounded-md border border-line object-cover hover:border-accent"
+                            className="size-11 cursor-pointer rounded-lg border border-line object-cover transition hover:scale-105 hover:border-accent"
                           />
                         ))}
                       </div>
                     </td>
                     <td className="py-3 pr-4 whitespace-nowrap text-muted">
-                      <div>{new Date(g.createdAt).toLocaleString()}</div>
-                      {g.startedAt && <div className="text-xs text-faint">took {elapsed(g.startedAt, g.finishedAt)}</div>}
+                      <div>{new Date(g.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                      {g.startedAt && <div className="text-xs text-faint">{active ? `${elapsed(g.startedAt)} so far` : `took ${elapsed(g.startedAt, g.finishedAt)}`}</div>}
                     </td>
-                    <td className="py-3 pr-4 text-muted">{usd(g.costUsd)}</td>
+                    <td className="py-3 pr-4 font-medium text-fg/80 tabular-nums">{usd(g.costUsd)}</td>
                     <td className="py-3 pr-6">
                       <div className="flex justify-end">
                         <IconButton label="Remix in Studio" onClick={() => (remix(g), navigate('/'))}>
@@ -125,7 +139,9 @@ export function JobsPage() {
             </tbody>
           </table>
         ) : (
-          <Empty icon={<ListChecks className="size-5" />} title="No jobs" />
+          <Empty icon={<ListChecks className="size-6" />} title="No jobs here">
+            Jobs you start in the Studio show up here with their status and cost.
+          </Empty>
         )}
         {hasNextPage && (
           <div className="flex justify-center p-4">

@@ -255,6 +255,7 @@ class JobWorker {
     if (!row || row.status !== 'running') return;
     update(id, { progress: 99 });
     const assetIds: string[] = [];
+    let videoSeconds = 0;
     const errors: string[] = [];
     for (const out of outputs) {
       try {
@@ -276,6 +277,7 @@ class JobWorker {
           model: row.model,
         });
         assetIds.push(asset.id);
+        videoSeconds += (asset.durationMs ?? 0) / 1000;
       } catch (err) {
         errors.push(errorMessage(err));
       }
@@ -289,7 +291,11 @@ class JobWorker {
       progress: 100,
       outputAssetIds: assetIds,
       // Providers that don't report spend fall back to the catalog's list price, if known.
-      costUsd: costUsd ?? estimateCost(ctx.model, row.params),
+      // Models that pick their own clip length are priced by the finished video's duration.
+      costUsd:
+        costUsd ??
+        estimateCost(ctx.model, row.params) ??
+        (row.kind === 'video' && videoSeconds ? estimateCost(ctx.model, { ...row.params, duration: videoSeconds, count: 1 }) : null),
       error: errors.length ? `${errors.length} output(s) could not be saved: ${errors[0]}` : null,
       finishedAt: Date.now(),
     });

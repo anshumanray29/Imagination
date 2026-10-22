@@ -25,6 +25,7 @@ No keys yet? The **Mock** provider is on by default, so every screen and flow ca
 |---|---|---|
 | Google Gemini | `GEMINI_API_KEY` | [AI Studio → API keys](https://aistudio.google.com/apikey). Video (Gemini Omni Flash) needs a **paid-tier** project. |
 | xAI Grok | `XAI_API_KEY` | [console.x.ai](https://console.x.ai) → API Keys (prepaid credits). |
+| OpenAI | `OPENAI_API_KEY` | [platform.openai.com](https://platform.openai.com/api-keys) → API keys. Images only: OpenAI shut down its Sora video API on 2026-09-24. |
 | Wan (Alibaba) | `DASHSCOPE_API_KEY`, `DASHSCOPE_BASE_URL` | Alibaba Cloud **Model Studio** → API Key. The key only works in the region it was created in; the default URL is Singapore. |
 | Cloudflare R2 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` (optional `R2_PREFIX`) | Cloudflare dashboard → R2 → create a **private** bucket → *Manage R2 API Tokens* → token with **Object Read & Write** on that bucket. |
 
@@ -34,6 +35,8 @@ The server only listens on `127.0.0.1`, so nothing is reachable from other devic
 
 ## What you can do
 
+- **Ctrl+K** anywhere opens the command palette: jump to a page, switch model, attach a character, upload.
+- **Model browser** (Studio → model card → Change): filter by provider, search, sort by price. Each card shows its list price and capabilities.
 - **Studio**
   - **Image mode**: text → image, or add 1–14 input images (depends on the model) to edit or combine them, e.g. "put the person from image 1 into the scene of image 2".
   - **Video mode**: text → video, start frame → video, start and end frames → video, and subject/character reference images → video.
@@ -51,8 +54,9 @@ The server only listens on `127.0.0.1`, so nothing is reachable from other devic
   - Open any item to download, favorite, remix, edit, animate or add it to a character.
   - **Continue** a video: saves its last frame and opens it as the next clip's start frame.
   - Multi-select clips and **Stitch** them into one video (ffmpeg).
-- **Queue**: live status of every job, with cancel, run again, remix, and cost per job (exact for xAI).
-- **Settings**
+- **Queue**: live status of every job, with cancel, run again, remix, and cost per job. xAI and OpenAI costs are exact (from each provider's usage report); Gemini and Wan use list prices.
+- **Usage & settings**
+  - Spend today / this month / all time, and a daily spend chart by provider.
   - Provider and storage checks.
   - **Move local files to R2** once R2 is configured.
   - **Back up database** to R2.

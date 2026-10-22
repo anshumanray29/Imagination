@@ -55,18 +55,31 @@ async function complete(provider: TextProvider, req: CompleteRequest): Promise<s
   return String(resp?.choices?.[0]?.message?.content ?? '').trim();
 }
 
-function pickProvider(preferred?: string): TextProvider {
+/**
+ * Try the preferred provider first, then every other configured one — so an exhausted
+ * quota or outage at one provider doesn't break the prompt tools.
+ */
+async function completeWithFallback(req: CompleteRequest, preferred?: string): Promise<{ text: string; provider: TextProvider }> {
   const available = textProviders();
-  if (preferred && available.includes(preferred as TextProvider)) return preferred as TextProvider;
   if (!available.length) throw badRequest('Add a Gemini, xAI or DashScope API key to use AI prompt tools');
-  return available[0]!;
+  const order = preferred && available.includes(preferred as TextProvider) ? [preferred as TextProvider, ...available.filter((p) => p !== preferred)] : available;
+  const errors: string[] = [];
+  for (const provider of order) {
+    try {
+      const text = clean(await complete(provider, req));
+      if (text) return { text, provider };
+      errors.push(`${provider}: empty response`);
+    } catch (err) {
+      errors.push(err instanceof Error ? err.message : String(err));
+    }
+  }
+  throw new Error(errors.join(' · '));
 }
 
 const clean = (s: string) => s.replace(/^["'`\s]+|["'`\s]+$/g, '').replace(/^(prompt|enhanced prompt)\s*:\s*/i, '');
 
 export async function enhancePrompt(prompt: string, kind: MediaKind, provider?: string) {
   if (!prompt.trim()) throw badRequest('Write a prompt to enhance');
-  const used = pickProvider(provider);
   const video = kind === 'video';
   const system = [
     `You are an expert prompt writer for AI ${video ? 'video' : 'image'} generation models.`,
@@ -77,15 +90,13 @@ export async function enhancePrompt(prompt: string, kind: MediaKind, provider?: 
       : 'Describe the subject, setting, composition and framing, lighting, color palette, style and level of detail.',
     'Answer with the prompt only — no preamble, no quotes, no bullet points, under 130 words.',
   ].join(' ');
-  const text = clean(await complete(used, { system, user: prompt }));
-  if (!text) throw new Error('The model returned an empty prompt');
+  const { text, provider: used } = await completeWithFallback({ system, user: prompt }, provider);
   return { prompt: text, provider: used };
 }
 
 export async function describeCharacter(assetIds: string[], provider?: string) {
   const rows = getAssetRows(assetIds).filter((r) => r.kind === 'image').slice(0, 4);
   if (!rows.length) throw badRequest('Add at least one image of the character first');
-  const used = pickProvider(provider);
   const images = await Promise.all(
     rows.map(async (r) => {
       const n = await normalizeImage(await readAsset(r), { maxSide: 1024, format: 'jpeg' });
@@ -96,7 +107,6 @@ export async function describeCharacter(assetIds: string[], provider?: string) {
     'You describe characters so that AI image and video models can reproduce them consistently. ' +
     'Write 2–4 sentences covering apparent age, build, face, skin tone, eyes, hair (color, length, style), ' +
     'signature clothing and accessories, and distinctive marks. Visual facts only — no names, no personality. Answer with the description only.';
-  const text = clean(await complete(used, { system, user: 'These images all show the same character. Describe them.', images }));
-  if (!text) throw new Error('The model returned an empty description');
+  const { text, provider: used } = await completeWithFallback({ system, user: 'These images all show the same character. Describe them.', images }, provider);
   return { description: text, provider: used };
 }

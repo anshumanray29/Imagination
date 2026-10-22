@@ -1,14 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { CheckSquare, Film, Heart, Images, Loader2, Search, Square, Trash2, Upload, UserPlus, X } from 'lucide-react';
-import type { MediaKind } from '@imagination/shared';
+import { CheckSquare, Film, Grid3x3, Heart, Images, Loader2, Search, Square, Trash2, Upload, UserPlus, X } from 'lucide-react';
+import type { Asset, MediaKind } from '@imagination/shared';
 import { api, type AssetQuery } from '@/lib/api';
+import { dayLabel } from '@/lib/format';
+import { providerMeta } from '@/lib/providers';
 import { useAssets, useCharacters, useProviders } from '@/lib/queries';
 import { pickFiles, useUpload } from '@/lib/upload';
 import { AssetViewer } from '@/components/AssetViewer';
-import { MediaThumb } from '@/components/MediaThumb';
-import { Button, Chip, Empty, inputClass, Segmented } from '@/components/ui';
+import { MediaTile } from '@/components/MediaTile';
+import { Button, Chip, Empty, inputClass, PageHeader, ProviderBadge, Segmented } from '@/components/ui';
 import { toast } from '@/components/toast';
+
+const DENSITY_KEY = 'img-gallery-columns';
+
+function readColumns(): number {
+  try {
+    const n = Number(localStorage.getItem(DENSITY_KEY));
+    return n >= 2 && n <= 8 ? n : 5;
+  } catch {
+    return 5;
+  }
+}
 
 export function GalleryPage() {
   const [kind, setKind] = useState<'all' | MediaKind>('all');
@@ -17,11 +30,13 @@ export function GalleryPage() {
   const [provider, setProvider] = useState<string>('');
   const [search, setSearch] = useState('');
   const [q, setQ] = useState('');
+  const [columns, setColumns] = useState(readColumns);
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [viewer, setViewer] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [charMenu, setCharMenu] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const { data: providers } = useProviders();
   const { data: characters } = useCharacters();
   const { upload, uploading } = useUpload();
@@ -30,6 +45,14 @@ export function GalleryPage() {
     const t = setTimeout(() => setQ(search.trim()), 300);
     return () => clearTimeout(t);
   }, [search]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DENSITY_KEY, String(columns));
+    } catch {
+      /* storage unavailable */
+    }
+  }, [columns]);
 
   const query: AssetQuery = {
     kind: kind === 'all' ? undefined : kind,
@@ -41,16 +64,28 @@ export function GalleryPage() {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useAssets(query);
   const items = useMemo(() => data?.pages.flatMap((p) => p.items) ?? [], [data]);
   const ids = useMemo(() => items.map((a) => a.id), [items]);
+  const groups = useMemo(() => {
+    const out: { label: string; items: Asset[] }[] = [];
+    for (const a of items) {
+      const label = dayLabel(a.createdAt);
+      const last = out[out.length - 1];
+      if (last?.label === label) last.items.push(a);
+      else out.push({ label, items: [a] });
+    }
+    return out;
+  }, [items]);
   const selectedAssets = items.filter((a) => selected.includes(a.id));
 
-  // Infinite scroll
   const sentinel = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = sentinel.current;
     if (!el) return;
-    const io = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) void fetchNextPage();
-    }, { rootMargin: '600px' });
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) void fetchNextPage();
+      },
+      { rootMargin: '800px' },
+    );
     io.observe(el);
     return () => io.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
@@ -74,19 +109,30 @@ export function GalleryPage() {
 
   const videosSelected = selectedAssets.filter((a) => a.kind === 'video');
   const imagesSelected = selectedAssets.filter((a) => a.kind === 'image');
+  const filtered = q || favorite || source !== 'all' || kind !== 'all' || provider;
 
   return (
     <div
-      className="flex h-full min-h-0 flex-col"
+      className="relative flex h-full min-h-0 flex-col"
+      onDragEnter={(e) => e.dataTransfer.types.includes('Files') && setDragging(true)}
       onDragOver={(e) => e.preventDefault()}
+      onDragLeave={(e) => e.currentTarget === e.target && setDragging(false)}
       onDrop={(e) => {
         e.preventDefault();
+        setDragging(false);
         void upload(Array.from(e.dataTransfer.files));
       }}
     >
-      <header className="flex flex-wrap items-center gap-3 border-b border-line px-6 py-3">
-        <h1 className="mr-2 font-semibold">Gallery</h1>
+      {dragging && (
+        <div className="animate-fade-in pointer-events-none absolute inset-4 z-40 flex flex-col items-center justify-center gap-2 rounded-3xl border-2 border-dashed border-accent/60 bg-bg/85 text-sm font-medium backdrop-blur">
+          <Upload className="size-7 text-accent" />
+          Drop to upload to your library
+        </div>
+      )}
+
+      <PageHeader title="Gallery" subtitle={items.length ? `${items.length}${hasNextPage ? '+' : ''} items` : undefined}>
         <Segmented
+          size="sm"
           value={kind}
           onChange={setKind}
           options={[
@@ -95,71 +141,81 @@ export function GalleryPage() {
             { value: 'video', label: 'Videos' },
           ]}
         />
-        <div className="flex gap-1.5">
-          {(['all', 'generated', 'upload', 'derived'] as const).map((s) => (
-            <Chip key={s} active={source === s} onClick={() => setSource(s)}>
-              {s === 'all' ? 'Any source' : s === 'generated' ? 'Generated' : s === 'upload' ? 'Uploads' : 'Edits & frames'}
-            </Chip>
-          ))}
-          <Chip active={favorite} onClick={() => setFavorite((v) => !v)}>
-            <span className="flex items-center gap-1">
-              <Heart className={clsx('size-3', favorite && 'fill-current text-pink-400')} /> Favorites
-            </span>
-          </Chip>
-        </div>
-        <select
-          value={provider}
-          onChange={(e) => setProvider(e.target.value)}
-          className="h-8 rounded-lg border border-line bg-panel px-2 text-xs text-fg outline-none focus:border-accent/60"
-        >
-          <option value="">All providers</option>
-          {providers?.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
         <div className="relative min-w-48 flex-1">
           <Search className="absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-faint" />
-          <input className={clsx(inputClass, 'h-8 py-0 pl-8 text-xs')} placeholder="Search prompts and names…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input className={clsx(inputClass, 'h-9 py-0 pl-8 text-xs')} placeholder="Search prompts and names…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
+        <label className="flex items-center gap-2 text-faint" title="Tile size">
+          <Grid3x3 className="size-3.5" />
+          <input type="range" className="slider w-24" min={2} max={8} value={10 - columns} onChange={(e) => setColumns(10 - Number(e.target.value))} />
+        </label>
         <Button size="sm" variant={selecting ? 'secondary' : 'ghost'} icon={<CheckSquare className="size-3.5" />} onClick={() => (selecting ? exitSelect() : setSelecting(true))}>
           {selecting ? 'Done' : 'Select'}
         </Button>
         <Button size="sm" variant="primary" loading={uploading} icon={<Upload className="size-3.5" />} onClick={async () => upload(await pickFiles('image/*,video/*'))}>
           Upload
         </Button>
-      </header>
+        <div className="flex w-full flex-wrap items-center gap-1.5">
+          {(['all', 'generated', 'upload', 'derived'] as const).map((s) => (
+            <Chip key={s} active={source === s} onClick={() => setSource(s)}>
+              {s === 'all' ? 'Any source' : s === 'generated' ? 'Generated' : s === 'upload' ? 'Uploads' : 'Frames & stitches'}
+            </Chip>
+          ))}
+          <Chip active={favorite} onClick={() => setFavorite((v) => !v)}>
+            <Heart className={clsx('size-3', favorite && 'fill-current text-pink-400')} /> Favorites
+          </Chip>
+          <span className="mx-1 h-4 w-px bg-line" />
+          <Chip active={!provider} onClick={() => setProvider('')}>
+            All providers
+          </Chip>
+          {providers
+            ?.filter((p) => p.configured)
+            .map((p) => (
+              <Chip key={p.id} active={provider === p.id} onClick={() => setProvider(provider === p.id ? '' : p.id)}>
+                <ProviderBadge provider={p.id} size="xs" /> {providerMeta(p.id).label}
+              </Chip>
+            ))}
+        </div>
+      </PageHeader>
 
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto px-6 pt-4 pb-24">
         {isLoading ? (
           <div className="flex justify-center py-20 text-muted">
             <Loader2 className="size-5 animate-spin" />
           </div>
         ) : items.length ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-            {items.map((a) => {
-              const isSel = selected.includes(a.id);
-              return (
-                <MediaThumb
-                  key={a.id}
-                  asset={a}
-                  selected={isSel}
-                  onClick={() => (selecting ? setSelected((s) => (isSel ? s.filter((x) => x !== a.id) : [...s, a.id])) : setViewer(a.id))}
-                  overlay={
-                    selecting && (
-                      <span className="absolute top-1.5 left-1.5 rounded-md bg-black/60 p-0.5 text-white">
-                        {isSel ? <CheckSquare className="size-4 text-accent" /> : <Square className="size-4" />}
-                      </span>
-                    )
-                  }
-                />
-              );
-            })}
-          </div>
+          groups.map((g) => (
+            <section key={g.label} className="mb-8">
+              <h3 className="mb-3 flex items-baseline gap-2 text-sm font-semibold">
+                {g.label}
+                <span className="text-xs font-normal text-faint">{g.items.length}</span>
+              </h3>
+              <div style={{ columnCount: columns, columnGap: '0.75rem' }}>
+                {g.items.map((a) => {
+                  const isSel = selected.includes(a.id);
+                  return (
+                    <div key={a.id} className="mb-3 break-inside-avoid">
+                      <MediaTile
+                        asset={a}
+                        selected={isSel}
+                        onOpen={() => (selecting ? setSelected((s) => (isSel ? s.filter((x) => x !== a.id) : [...s, a.id])) : setViewer(a.id))}
+                        topLeft={
+                          selecting && (
+                            <span className="absolute top-2 left-2 z-10 rounded-md bg-black/60 p-0.5 text-white">
+                              {isSel ? <CheckSquare className="size-4 text-accent" /> : <Square className="size-4" />}
+                            </span>
+                          )
+                        }
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          ))
         ) : (
-          <Empty icon={<Images className="size-5" />} title={q || favorite || source !== 'all' || kind !== 'all' ? 'No matches' : 'Your gallery is empty'}>
-            Drop images or videos here to upload them, or create something in the Studio.
+          <Empty icon={<Images className="size-6" />} title={filtered ? 'No matches' : 'Your gallery is empty'}>
+            {filtered ? 'Try clearing a filter or searching for something else.' : 'Drop images or videos anywhere on this page to upload them, or create something in the Studio.'}
           </Empty>
         )}
         <div ref={sentinel} className="h-10" />
@@ -171,7 +227,7 @@ export function GalleryPage() {
       </div>
 
       {selecting && selected.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-2xl border border-line bg-panel-2/95 px-3 py-2 shadow-2xl backdrop-blur">
+        <div className="animate-slide-up glass fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-2xl border border-line-strong px-3 py-2 shadow-2xl">
           <span className="px-2 text-sm font-medium">{selected.length} selected</span>
           {videosSelected.length >= 2 && (
             <Button
@@ -199,7 +255,7 @@ export function GalleryPage() {
                 Add to character
               </Button>
               {charMenu && (
-                <div className="absolute bottom-full left-0 mb-2 w-56 overflow-hidden rounded-lg border border-line bg-panel-2 py-1 shadow-xl">
+                <div className="animate-pop-in absolute bottom-full left-0 mb-2 w-56 overflow-hidden rounded-xl border border-line-strong bg-panel-2 py-1 shadow-2xl">
                   {(characters ?? []).map((c) => (
                     <button
                       key={c.id}
@@ -249,7 +305,7 @@ export function GalleryPage() {
           >
             Delete
           </Button>
-          <button onClick={exitSelect} className="rounded-md p-1 text-muted hover:text-fg">
+          <button onClick={exitSelect} className="rounded-md p-1 text-muted hover:text-fg" aria-label="Cancel selection">
             <X className="size-4" />
           </button>
         </div>

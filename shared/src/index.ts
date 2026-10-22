@@ -42,11 +42,22 @@ export interface ModelCapabilities {
   promptExtend: boolean;
   /** Supported quality levels, if any. */
   qualities?: string[];
+  /** Can render a transparent (alpha) background. */
+  transparentBackground?: boolean;
 }
 
+/** List prices in USD. Keyed maps override the flat price when the chosen param matches. */
 export interface ModelPricing {
   perImage?: number;
+  perImageByResolution?: Record<string, number>;
+  /** Image price per quality level (at the smallest size). */
+  perImageByQuality?: Record<string, number>;
+  /** Multiplier applied to the image price per resolution (when price grows with pixel count). */
+  scaleByResolution?: Record<string, number>;
   perSecond?: number;
+  perSecondByResolution?: Record<string, number>;
+  /** True when the figures are estimates rather than published per-unit prices. */
+  approximate?: boolean;
   note?: string;
 }
 
@@ -81,6 +92,7 @@ export interface GenerationParams {
   promptExtend?: boolean;
   quality?: string;
   style?: string;
+  background?: 'transparent' | 'auto';
 }
 
 export interface GenerationInput {
@@ -175,6 +187,15 @@ export interface SystemStatus {
   textProviders: string[];
   counts: { assets: number; images: number; videos: number; generations: number; characters: number; localAssets: number };
   spend: { provider: string; costUsd: number; jobs: number }[];
+  spendToday: number;
+  spendMonth: number;
+}
+
+export interface DailyUsage {
+  day: string;
+  provider: string;
+  costUsd: number;
+  jobs: number;
 }
 
 export type ServerEvent =
@@ -231,13 +252,43 @@ export function normalizeParams(p: GenerationParams, caps: ModelCapabilities): G
   if (!caps.audio) delete out.audio;
   if (!caps.promptExtend) delete out.promptExtend;
   if (!out.quality || !caps.qualities?.includes(out.quality)) delete out.quality;
+  if (!caps.transparentBackground || out.background !== 'transparent') delete out.background;
   return out;
 }
 
+/** Case-insensitive lookup in a price map ("2K" matches "2k"). */
+function priceFor(map: Record<string, number> | undefined, key: string | undefined): number | undefined {
+  if (!map || !key) return undefined;
+  const k = Object.keys(map).find((x) => x.toLowerCase() === key.toLowerCase());
+  return k === undefined ? undefined : map[k];
+}
+
 export function estimateCost(model: ModelInfo, params: GenerationParams): number | null {
+  const p = model.pricing;
+  if (!p) return null;
   const count = params.count ?? 1;
-  if (model.capabilities.kind === 'video' && model.pricing?.perSecond && params.duration) return model.pricing.perSecond * params.duration * count;
-  if (model.capabilities.kind === 'image' && model.pricing?.perImage) return model.pricing.perImage * count;
+  if (model.capabilities.kind === 'video') {
+    const rate = priceFor(p.perSecondByResolution, params.resolution) ?? p.perSecond;
+    return rate && params.duration ? rate * params.duration * count : null;
+  }
+  let unit = priceFor(p.perImageByQuality, params.quality ?? 'auto') ?? priceFor(p.perImageByResolution, params.resolution) ?? p.perImage;
+  if (unit === undefined) return null;
+  unit *= priceFor(p.scaleByResolution, params.resolution) ?? 1;
+  return unit * count;
+}
+
+/** Cheapest–dearest unit price, for compact labels. */
+export function priceRange(p: ModelPricing | undefined): { min: number; max: number; unit: 'image' | 'sec' } | null {
+  if (!p) return null;
+  const image = [p.perImage, ...Object.values(p.perImageByResolution ?? {}), ...Object.values(p.perImageByQuality ?? {})].filter(
+    (n): n is number => typeof n === 'number',
+  );
+  if (image.length) {
+    const scales = Object.values(p.scaleByResolution ?? { base: 1 });
+    return { min: Math.min(...image) * Math.min(...scales), max: Math.max(...image) * Math.max(...scales), unit: 'image' };
+  }
+  const video = [p.perSecond, ...Object.values(p.perSecondByResolution ?? {})].filter((n): n is number => typeof n === 'number');
+  if (video.length) return { min: Math.min(...video), max: Math.max(...video), unit: 'sec' };
   return null;
 }
 

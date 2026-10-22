@@ -1,4 +1,4 @@
-import { Agent, fetch } from 'undici';
+import { Agent, fetch, FormData } from 'undici';
 import { summarizeBody } from './util.js';
 
 // Video endpoints can hold a request open for minutes; the default 5-minute header timeout is too short.
@@ -16,7 +16,9 @@ export class ProviderHttpError extends Error {
 
 function extractErrorMessage(body: string): string {
   try {
-    const json = JSON.parse(body);
+    const parsed = JSON.parse(body);
+    // Some Google endpoints wrap the error in an array.
+    const json = Array.isArray(parsed) ? parsed[0] : parsed;
     const msg =
       json?.error?.message ?? json?.message ?? json?.error ?? json?.output?.message ?? json?.detail ?? json?.code;
     if (typeof msg === 'string' && msg) return summarizeBody(msg);
@@ -58,6 +60,23 @@ export async function requestJson<T = any>(url: string, req: JsonRequest): Promi
   const text = await res.text();
   if (!res.ok) throw new ProviderHttpError(res.status, text, req.provider);
   if (!text) return {} as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(`${req.provider} returned a non-JSON response: ${summarizeBody(text)}`);
+  }
+}
+
+/** POST multipart/form-data (file uploads) and parse a JSON response. */
+export async function requestForm<T = any>(
+  url: string,
+  req: { form: FormData; headers?: Record<string, string>; signal?: AbortSignal; provider: string },
+): Promise<T> {
+  const res = await fetch(url, { method: 'POST', headers: req.headers, body: req.form, signal: req.signal, dispatcher: longAgent }).catch((err) => {
+    throw networkError(req.provider, url, err);
+  });
+  const text = await res.text();
+  if (!res.ok) throw new ProviderHttpError(res.status, text, req.provider);
   try {
     return JSON.parse(text) as T;
   } catch {

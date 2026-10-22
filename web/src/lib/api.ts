@@ -2,6 +2,7 @@ import type {
   Asset,
   Character,
   CreateGenerationBody,
+  DailyUsage,
   Generation,
   MediaKind,
   Page,
@@ -77,6 +78,7 @@ export const api = {
   stitch: (assetIds: string[]) => request<Asset>('POST', '/api/tools/stitch', { assetIds }),
 
   status: () => request<SystemStatus>('GET', '/api/system/status'),
+  usage: (days = 30) => request<DailyUsage[]>('GET', `/api/system/usage?days=${days}`),
   testStorage: () => request<{ ok: boolean; message: string }>('POST', '/api/system/test-storage'),
   migrateToR2: () => request<{ moved: number; failed: string[] }>('POST', '/api/system/migrate-to-r2'),
   backup: () => request<{ ok: boolean; message: string }>('POST', '/api/system/backup'),

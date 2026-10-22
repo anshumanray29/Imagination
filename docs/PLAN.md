@@ -45,6 +45,7 @@ Fastify API ──► SQLite (assets, generations, characters)
 |---|---|---|---|
 | Google Gemini | Nano Banana 2.1, Pro, 2, 2 Lite: generate & edit with up to 14 images | Gemini Omni Flash: text/start/end/reference → video with audio | Uses the Interactions API. Veo 3.1 preview IDs retire 2026-10-22; GA Veo is only on Vertex AI. |
 | xAI | Grok Imagine Image 2.0 / Quality: generate, edit with up to 5 images | Grok Imagine Video 1.5 / 1.5 Lite / classic: up to 15 s, 1080p, start/end frame, references | Reports exact cost per request. |
+| OpenAI | GPT Image 2.5 Sunburst / Flare, GPT Image 1 Mini: generate, edit (multipart), transparent backgrounds | — (Sora API shut down 2026-09-24) | Exact cost computed from token usage. |
 | Wan (DashScope) | Wan 2.7 Image / Pro: generate, edit with up to 9 images | Wan 3.0 Video / Prime: 2–30 s, start/end frame, up to 10 references | Async tasks; inputs by URL. |
 | Mock | placeholder images | ffmpeg test clips | Offline testing. |
 
@@ -71,7 +72,7 @@ Fastify API ──► SQLite (assets, generations, characters)
 
 ### Phase 3 — more providers & polish
 
-- More providers: OpenAI (GPT Image / Sora), fal.ai (one key → Kling, Seedance, Flux, Hailuo…), Replicate, Runway, Luma, BytePlus Seedance/Seedream, Vertex AI Veo (GA).
+- More providers: fal.ai (one key → Kling, Seedance, Flux, Hailuo…), Replicate, Runway, Luma, BytePlus Seedance/Seedream, Vertex AI Veo (GA).
 - **Local GPU provider** via ComfyUI running open-weight Wan models: free generation if this PC has a capable NVIDIA GPU.
 - Desktop packaging (system-tray app), optional LAN access protected by a passcode, scheduled automatic R2 backups.
 

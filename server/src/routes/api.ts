@@ -33,7 +33,9 @@ import {
 import {
   cancelGeneration,
   createGenerations,
+  dailySpend,
   deleteGeneration,
+  periodSpend,
   generationCount,
   getGenerationRow,
   listGenerations,
@@ -66,6 +68,7 @@ const createGenerationSchema = z.object({
     promptExtend: z.boolean().optional(),
     quality: z.string().optional(),
     style: z.string().optional(),
+    background: z.enum(['transparent', 'auto']).optional(),
   }),
   inputs: z.array(z.object({ assetId: z.string(), role: z.enum(['source', 'reference', 'first_frame', 'last_frame']) })).max(20),
   characterIds: z.array(z.string()).max(6),
@@ -263,7 +266,14 @@ export async function apiRoutes(app: FastifyInstance) {
         characters: characterCount(),
       },
       spend: spendByProvider(),
+      spendToday: periodSpend().today,
+      spendMonth: periodSpend().month,
     };
+  });
+
+  app.get('/api/system/usage', async (req) => {
+    const { days } = z.object({ days: z.coerce.number().int().min(1).max(366).default(30) }).parse(req.query);
+    return dailySpend(days);
   });
 
   app.post('/api/system/test-storage', async () => {

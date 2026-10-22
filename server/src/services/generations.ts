@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
 import { modeFor, normalizeParams, type CreateGenerationBody, type Generation, type JobStatus, type ModelInfo, type Page } from '@imagination/shared';
 import { db, schema } from '../db/index.js';
 import type { GenerationRow } from '../db/schema.js';
@@ -221,6 +221,31 @@ export function spendByProvider() {
     .where(eq(g.status, 'succeeded'))
     .groupBy(g.provider)
     .all();
+}
+
+/** Spend and successful jobs per local calendar day and provider. */
+export function dailySpend(days: number) {
+  const g = schema.generations;
+  const day = sql<string>`date(${g.createdAt} / 1000, 'unixepoch', 'localtime')`;
+  const since = Date.now() - days * 86_400_000;
+  return db
+    .select({ day, provider: g.provider, costUsd: sql<number>`coalesce(sum(${g.costUsd}), 0)`, jobs: sql<number>`count(*)` })
+    .from(g)
+    .where(and(eq(g.status, 'succeeded'), gte(g.createdAt, since)))
+    .groupBy(day, g.provider)
+    .orderBy(day)
+    .all();
+}
+
+/** Spend since local midnight and since the 1st of this month. */
+export function periodSpend() {
+  const g = schema.generations;
+  const now = new Date();
+  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const sum = (since: number) =>
+    db.select({ v: sql<number>`coalesce(sum(${g.costUsd}), 0)` }).from(g).where(and(eq(g.status, 'succeeded'), gte(g.createdAt, since))).get()?.v ?? 0;
+  return { today: sum(dayStart), month: sum(monthStart) };
 }
 
 export function generationCount(): number {
